@@ -25,7 +25,9 @@ export function TimeSlotGame() {
   const [aiMessages, setAiMessages] = useState<string[]>(["神经链路稳定。我会保持静默，除非你呼叫我。历史世界中的人无法察觉我的存在。"]);
   const storyEnd = useRef<HTMLDivElement>(null);
 
-  useEffect(() => storyEnd.current?.scrollIntoView({ behavior: "smooth" }), [story]);
+  useEffect(() => {
+    storyEnd.current?.scrollIntoView({ behavior: "smooth" });
+  }, [story]);
 
   function startTravel() {
     setProgress(0);
