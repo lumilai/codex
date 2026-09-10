@@ -1,0 +1,9 @@
+import type { Npc } from "@/types/game";
+
+export const npcTemplates: Npc[] = [
+  { id: "farmer-tian", archetype: "farmer", name: "田阿木", gender: "男", age: 43, socialClass: "庶人", occupation: "城郊农人", origin: "临淄西郊", personality: ["谨慎", "朴实"], wealth: "拮据", education: "不识字", goal: "在日中前将两筐菽送进城", attitude: 0, knowledge: ["农时", "赋税", "城门规矩", "乡里生活"], memory: [], visual: "农", greeting: "这位客人，你也是要进临淄？日头再高些，城门前可要更挤了。" },
+  { id: "vendor-yan", archetype: "vendor", name: "晏禾", gender: "女", age: 32, socialClass: "庶人", occupation: "香草商贩", origin: "即墨", personality: ["机敏", "健谈"], wealth: "小有积蓄", education: "会记简单账目", goal: "赶上今日市集的早市", attitude: 1, knowledge: ["市价", "商路", "各地货物", "城中坊市"], memory: [], visual: "商", greeting: "借过——你若不熟城里的路，跟着我的车走倒不会错。只是莫挡了守门卒的眼。" },
+  { id: "soldier-shi", archetype: "soldier", name: "石辛", gender: "男", age: 27, socialClass: "士卒", occupation: "临淄城门卒", origin: "齐国安平", personality: ["严厉", "守规矩"], wealth: "温饱", education: "识得军令与名籍", goal: "盘查今日入城的可疑生人", attitude: -1, knowledge: ["城防", "军令", "道路", "基本律令"], memory: [], visual: "卒", greeting: "你，停下。看着面生，从哪一邑来？入城所为何事？" },
+  { id: "scholar-mo", archetype: "scholar", name: "墨离", gender: "男", age: 36, socialClass: "士", occupation: "墨家游士", origin: "宋地", personality: ["克制", "好辩"], wealth: "清贫", education: "通晓墨家言说与工巧", goal: "寻访可践行节用主张的同道", attitude: 0, knowledge: ["墨家思想", "城防工巧", "列国见闻", "士人交游"], memory: [], visual: "士", greeting: "观你驻足良久，却不似迷路。人行于世，总该知道自己为何而行，你说呢？" },
+  { id: "retainer-lu", archetype: "retainer", name: "鲁仲仪", gender: "女", age: 29, socialClass: "士", occupation: "大夫家门客", origin: "鲁地", personality: ["从容", "审慎"], wealth: "衣食优渥", education: "熟习礼仪、辞令与诸子之说", goal: "替主人留意初到临淄的可用之才", attitude: 0, knowledge: ["贵族礼仪", "稷下士人", "政治风向", "门客生活"], memory: [], visual: "客", greeting: "临淄每日都有异乡人来。有人求利，有人求名——不知足下所求为何？" },
+];
