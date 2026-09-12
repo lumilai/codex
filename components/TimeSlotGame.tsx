@@ -1,17 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Activity, ArrowLeft, ChevronRight, CircleStop, CornerDownLeft, Eye, Footprints, Gauge, PackageSearch, Radio, ScanLine, ShieldAlert, Sparkles, UserRound } from "lucide-react";
+import { Activity, ChevronRight, CircleStop, CornerDownLeft, Eye, Footprints, PackageSearch, Radio, ScanLine, ShieldAlert, Sparkles, UserRound } from "lucide-react";
+import { npcTemplates } from "@/data/npcs";
 import { initialNarration, linziWorld } from "@/data/world";
-import { askTemporalAi, initialPlayerState, randomNpc, resolveFreeAction, resolvePreset } from "@/game/engine";
-import type { GamePhase, Npc, PlayerState, StoryEntry } from "@/types/game";
+import { askTemporalAi, getAvailableActions, initialPlayerState, randomNpc, resolveFreeAction, resolvePreset, sceneTitles } from "@/game/engine";
+import type { ActionOption, GamePhase, Npc, PlayerState, SceneId, StoryEntry } from "@/types/game";
 
-const presetActions = [
-  { id: "observe", label: "观察四周", icon: Eye },
-  { id: "follow", label: "跟随队伍", icon: Footprints },
-  { id: "inspect", label: "检查行囊", icon: PackageSearch },
-  { id: "talk", label: "与陌生人交谈", icon: UserRound },
-];
+function npcForScene(scene: SceneId): Npc {
+  const archetype = scene === "drink-stall" ? "vendor" : scene === "gate-queue" ? "soldier" : scene === "city-street" ? "scholar" : null;
+  const template = archetype ? npcTemplates.find((item) => item.archetype === archetype) : undefined;
+  return { ...(template ?? randomNpc()), memory: [] };
+}
+
+function actionIcon(action: ActionOption) {
+  if (/观察|看看/.test(action.label)) return Eye;
+  if (/行囊|买|浆水/.test(action.label)) return PackageSearch;
+  if (/问|盘问|打听|自称/.test(action.label)) return UserRound;
+  return Footprints;
+}
 
 export function TimeSlotGame() {
   const [phase, setPhase] = useState<GamePhase>("lobby");
@@ -25,12 +32,15 @@ export function TimeSlotGame() {
   const [aiMessages, setAiMessages] = useState<string[]>(["神经链路稳定。我会保持静默，除非你呼叫我。历史世界中的人无法察觉我的存在。"]);
   const storyEnd = useRef<HTMLDivElement>(null);
 
+  const availableActions = getAvailableActions(player);
+
   useEffect(() => {
     storyEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [story]);
 
   function startTravel() {
     setProgress(0);
+    setPlayer(initialPlayerState);
     setPhase("traveling");
     const started = Date.now();
     const timer = window.setInterval(() => {
@@ -38,32 +48,49 @@ export function TimeSlotGame() {
       setProgress(next);
       if (next >= 100) {
         window.clearInterval(timer);
-        const encountered = randomNpc();
-        setNpc(encountered);
+        setNpc(npcForScene("west-road"));
         setStory(initialNarration.map((text, index) => ({ id: index, type: "narration", text })));
         window.setTimeout(() => setPhase("world"), 350);
       }
     }, 50);
   }
 
-  function doPreset(id: string) {
+  function doPreset(action: ActionOption) {
     if (!npc) return;
-    setStory((items) => [...items, { id: Date.now(), type: "player", text: presetActions.find((a) => a.id === id)?.label ?? id }, { id: Date.now() + 1, type: "narration", text: resolvePreset(id, npc) }]);
+    const previousScene = player.scene;
+    const result = resolvePreset(action.id, player, npc);
+    setStory((items) => [
+      ...items,
+      { id: Date.now(), type: "player", text: action.label },
+      { id: Date.now() + 1, type: "narration", text: result.text },
+    ]);
+    setPlayer(result.player);
+    if (result.player.scene !== previousScene) setNpc(npcForScene(result.player.scene));
   }
 
   function submitAction() {
     const value = input.trim();
     if (!value || !npc) return;
     const result = resolveFreeAction(value, npc);
-    setStory((items) => [...items, { id: Date.now(), type: "player", text: value }, { id: Date.now() + 1, type: "npc", speaker: npc.name, text: result.text }]);
-    setPlayer((p) => ({ ...p, suspicion: Math.min(100, p.suspicion + result.suspicionDelta), knownPeople: p.knownPeople.includes(npc.name) ? p.knownPeople : [...p.knownPeople, npc.name] }));
+    setStory((items) => [
+      ...items,
+      { id: Date.now(), type: "player", text: value },
+      { id: Date.now() + 1, type: "npc", speaker: npc.name, text: result.text },
+    ]);
+    setPlayer((p) => ({
+      ...p,
+      turn: p.turn + 1,
+      suspicion: Math.min(100, p.suspicion + result.suspicionDelta),
+      knownPeople: p.knownPeople.includes(npc.name) ? p.knownPeople : [...p.knownPeople, npc.name],
+    }));
+    setNpc((current) => current ? { ...current, memory: [...current.memory, result.memory] } : current);
     setInput("");
   }
 
   function submitAi() {
     if (!npc) return;
     const q = aiQuestion.trim() || "分析当前情况";
-    setAiMessages((messages) => [...messages, `你：${q}`, askTemporalAi(q, npc)]);
+    setAiMessages((messages) => [...messages, `你：${q}`, askTemporalAi(q, npc, player)]);
     setAiQuestion("");
   }
 
@@ -93,30 +120,36 @@ export function TimeSlotGame() {
       <div className="world-layout">
         <aside className="context-panel">
           <p className="section-label">TEMPORAL POSITION</p>
-          <div className="date-card"><span>{linziWorld.year}</span><strong>临淄城外</strong><small>{player.time}</small></div>
+          <div className="date-card"><span>{linziWorld.year}</span><strong>{sceneTitles[player.scene]}</strong><small>{player.time}</small></div>
           <div className="map-orbit"><i className="road r1" /><i className="road r2" /><i className="road r3" /><div className="city">临淄</div><div className="you">你</div></div>
           <div className="state-list">
             <StateRow label="所在位置" value={player.location} />
-            <StateRow label="钱财" value={player.money} />
+            <StateRow label="钱财" value={`${player.coins} 枚齐刀币`} />
             <StateRow label="身体状况" value={`${player.health}%`} bar={player.health} />
             <StateRow label="身份可信度" value={`${player.credibility}%`} bar={player.credibility} />
             <StateRow label="受怀疑程度" value={`${player.suspicion}%`} bar={player.suspicion} alert={player.suspicion > 25} />
           </div>
           <details className="world-note"><summary>此时的临淄 <ChevronRight size={14} /></summary><p>{linziWorld.politicalBackground}</p></details>
+          <details className="world-note"><summary>你已了解到 <ChevronRight size={14} /></summary><p>{player.discoveries.slice(-5).join("；")}</p></details>
         </aside>
 
         <section className="story-panel">
-          <div className="chapter"><span>第一刻</span><h2>城门之外</h2><p>风从西边来，卷起车辙里细小的尘土。</p></div>
+          <div className="chapter"><span>第 {player.turn + 1} 刻</span><h2>{sceneTitles[player.scene]}</h2><p>{player.scene === "city-street" ? "城门已经在你身后，真正的临淄开始展开。" : "这个时代不会等待你做完决定才继续向前。"}</p></div>
           <div className="story-stream">
             {story.map((entry) => <StoryBlock key={entry.id} entry={entry} />)}
-            {npc && <div className="encounter-card"><div className="npc-seal">{npc.visual}</div><div><p>你遇见了</p><h3>{npc.name}</h3><span>{npc.occupation} · {npc.age}岁 · {npc.origin}</span></div><blockquote>“{npc.greeting}”</blockquote></div>}
+            {npc && <div className="encounter-card"><div className="npc-seal">{npc.visual}</div><div><p>眼前的人</p><h3>{npc.name}</h3><span>{npc.occupation} · {npc.age}岁 · {npc.origin}</span></div><blockquote>“{npc.greeting}”</blockquote></div>}
             <div ref={storyEnd} />
           </div>
           <div className="actions-wrap">
-            <p className="section-label">你准备如何行动？</p>
-            <div className="preset-grid">{presetActions.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => doPreset(id)}><Icon size={17} />{label}</button>)}</div>
-            <div className="free-input"><input aria-label="自由行动" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitAction()} placeholder="或者，自由描述你的行动……" /><button onClick={submitAction} aria-label="提交行动"><CornerDownLeft size={18} /></button></div>
-            <p className="input-hint">你的言行会影响身份可信度与他人的判断</p>
+            <p className="section-label">此刻你可以——</p>
+            <div className="preset-grid">
+              {availableActions.map((action) => {
+                const Icon = actionIcon(action);
+                return <button key={action.id} onClick={() => doPreset(action)}><Icon size={17} />{action.label}</button>;
+              })}
+            </div>
+            <div className="free-input"><input aria-label="自由行动" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitAction()} placeholder="或者，自由描述你想对眼前的人说什么……" /><button onClick={submitAction} aria-label="提交行动"><CornerDownLeft size={18} /></button></div>
+            <p className="input-hint">行动会改变地点、信息、钱财、可信度与他人的判断；已完成的关键行动不会无限重复。</p>
           </div>
         </section>
 
@@ -147,7 +180,7 @@ function StoryBlock({ entry }: { entry: StoryEntry }) {
 function Lobby({ onStart }: { onStart: () => void }) {
   return <main className="lobby-shell">
     <div className="grid-plane"/><div className="scanline"/><div className="glitch g1"/><div className="glitch g2"/>
-    <header className="lobby-header"><div className="brand"><div className="brand-mark"><span>隙</span></div><div><b>时隙</b><small>TIMESLIT / TEMPORAL PROTOCOL</small></div></div><div className="system-online"><i/> SYSTEM ONLINE <span>β 0.1</span></div></header>
+    <header className="lobby-header"><div className="brand"><div className="brand-mark"><span>隙</span></div><div><b>时隙</b><small>TIMESLIT / TEMPORAL PROTOCOL</small></div></div><div className="system-online"><i/> SYSTEM ONLINE <span>β 0.2</span></div></header>
     <section className="lobby-content">
       <div className="lobby-copy"><p className="eyebrow">TEMPORAL NAVIGATION TERMINAL</p><h1>在时间的缝隙里，<br/><em>成为一个普通人。</em></h1><p className="intro">这不是历史的旁观席。你将拥有气味、饥饿、误解与选择。<br/>记住：你可以抵达过去，但不能置身事外。</p><div className="notice"><ScanLine size={18}/><p><b>未公开实验协议 // TS-07</b><span>因果扰动监测已启用。请勿暴露未来身份。</span></p></div></div>
       <div className="coordinate-card"><div className="card-top"><span>唯一可用坐标</span><i>COORDINATE LOCKED</i></div><div className="orb"><div className="orb-ring r-a"/><div className="orb-ring r-b"/><div className="orb-core"><small>目标年代</small><strong>公元前<br/><b>305</b> 年</strong></div><div className="tick t1"/><div className="tick t2"/><div className="tick t3"/></div><div className="destination"><span>战国中期</span><h2>齐国 <i>/</i> 临淄</h2><p>36.8°N &nbsp;·&nbsp; 118.3°E</p></div><div className="metrics"><div><small>投射稳定率</small><b>98.7%</b></div><div><small>时间偏差</small><b>± 3 年</b></div><div><small>因果风险</small><b className="low">低</b></div></div><button className="jump-button" onClick={onStart}><span>启动时空迁跃</span><ChevronRight/><i/></button><p className="jump-hint">点击即代表你知悉时空投射风险</p></div>
