@@ -1,5 +1,7 @@
 export type GamePhase = "lobby" | "traveling" | "world";
 
+export type SceneId = "west-road" | "drink-stall" | "gate-queue" | "city-street";
+
 export type NpcArchetype = "farmer" | "vendor" | "soldier" | "scholar" | "retainer";
 
 export interface Npc {
@@ -23,15 +25,29 @@ export interface Npc {
 }
 
 export interface PlayerState {
+  scene: SceneId;
   location: string;
   time: string;
-  money: string;
+  coins: number;
   credibility: number;
   suspicion: number;
   health: number;
+  turn: number;
   knownPeople: string[];
   inventory: string[];
   discoveries: string[];
+  completedActions: string[];
+}
+
+export interface ActionOption {
+  id: string;
+  label: string;
+  hint?: string;
+}
+
+export interface ActionResult {
+  text: string;
+  player: PlayerState;
 }
 
 export interface StoryEntry {
